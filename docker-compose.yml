@@ -1,0 +1,52 @@
+version: "3.3"
+
+services:
+  traefik:
+    image: "traefik:v2.2"
+    container_name: "traefik"
+    env_file: ./traefik.env
+    restart: always
+    command:
+      - "--log.level=DEBUG"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=ruffat.arnaud@gmail.com"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--providers.docker.network=external"
+    ports:
+      - "80:80"
+      - "443:443"
+#      - "8080:8080"
+    volumes:
+      - "./letsencrypt:/letsencrypt"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - external
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.$(SUBDOMAIN)-web.rule=Host(`$(SUBDOMAIN).$(DOMAIN)`)"
+      - "traefik.http.routers.$(SUBDOMAIN)-web.entrypoints=web"
+      - "traefik.http.routers.$(SUBDOMAIN)-web.middlewares=$SUBDOMAIN)redirect"
+      - "traefik.http.routers.$(SUBDOMAIN)-websecured.rule=Host(`$(SUBDOMAIN).$(DOMAIN)`)"
+      - "traefik.http.routers.$(SUBDOMAIN)-websecured.entrypoints=websecure"
+      - "traefik.http.routers.$(SUBDOMAIN)-websecured.tls=true"
+      - "traefik.http.routers.$(SUBDOMAIN)-websecured.tls.certresolver=letsencrypt"
+      - "traefik.http.middlewares.$(SUBDOMAIN)redirect.redirectscheme.scheme=https"
+      - "traefik.http.services.$(SUBDOMAIN).loadbalancer.server.port=8080"
+
+
+  traefik-dumpcerts:
+    volumes:
+      - './letsencrypt/:/etc/traefik/acme'
+      - './ssl:/etc/traefik/ssl'
+    image: 'anh4n/traefik-dumpcerts:latest'
+
+networks:
+  external:
+    external: true
+
